@@ -56,7 +56,7 @@ export default function ChatPage() {
 
     try {
       // Replace with your FastAPI endpoint
-      const response = await fetch("http://your-fastapi-backend/chat", {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
