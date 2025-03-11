@@ -98,7 +98,9 @@ export default function ChatPage() {
     <div className="flex items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-2xl h-[80vh] flex flex-col">
         <CardHeader>
-          <CardTitle className="text-xl font-bold">AI Assistant</CardTitle>
+          <CardTitle className="text-xl font-bold">
+            Aviation AI Assistant
+          </CardTitle>
         </CardHeader>
         <CardContent className="flex-1 overflow-hidden">
           <ScrollArea className="h-full pr-4">
