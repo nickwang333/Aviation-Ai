@@ -216,6 +216,47 @@ def add_to_vector_store():
         "https://python.langchain.com/docs/introduction/",
         "https://www.freecodecamp.org/news/get-started-with-hugging-face/",
         "https://github.com/MODSetter/SurfSense/blob/main/README.md"
+        
+         """
+        Website: https://www.ntsb.gov
+        Accident Database: https://www.ntsb.gov/_layouts/ntsb.aviation/index.aspx
+        Federal Aviation Administration (FAA): Publishes data and reports on aviation incidents and accidents.
+        Website: https://www.faa.gov
+        Accident and Incident Data System (AIDS): https://www.faa.gov/data_research/accident_incident/aviation_data_system/
+        International Civil Aviation Organization (ICAO): Offers global aviation accident reports and safety data.
+        Website: https://www.icao.int
+        Safety Reports: https://www.icao.int/safety/Pages/Safety-Report.aspx
+        Bureau d'Enquêtes et d'Analyses (BEA): Responsible for aviation accident investigation reports in France and related regions.
+        Website: https://www.bea.aero
+        Investigation Reports: https://www.bea.aero/en/investigation-reports/
+        Aviation Safety Databases:
+
+        Aviation Safety Network (ASN): Collects data on global aviation accidents and safety incidents.
+        Website: https://aviation-safety.net/
+        Manufacturer Safety Documents:
+
+        Boeing: Publishes safety reports and technical documents related to its aircraft.
+        Website: https://www.boeing.com
+        Safety Information: https://www.boeing.com/commercial/safety/
+        Airbus: Provides safety information and reports for its aircraft models.
+        Website: https://www.airbus.com
+        Safety Information: https://safetyfirst.airbus.com/
+        Pilot and Air Traffic Control Records:
+
+        Cockpit Voice Recorder (CVR) Data: Typically included in official accident reports, providing dialogues between pilots and air traffic control.
+        These records are usually found within the accident investigation reports from agencies like NTSB and BEA.
+        Weather Reports and Maintenance Logs:
+
+        National Weather Service (NWS): Offers historical weather data useful for analyzing conditions during accidents.
+        Website: https://www.weather.gov
+        Historical Weather Data: https://www.weather.gov/climate/
+        Airline Maintenance Records: Typically obtained by relevant agencies during accident investigations and may be included in official reports.
+        Aviation Safety Research Papers:
+
+        Academic Journals and Conference Proceedings: Numerous research papers on aviation safety are published in journals like Aerospace Science and Technology.
+        Journal Homepage: https://www.journals.elsevier.com/aerospace-science-and-technology
+        Paper Search Platform: https://www.sciencedirect.com/journal/aerospace-science-and-technology
+        """
     ]
     
     # Load documents from URLs
