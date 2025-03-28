@@ -1,0 +1,11 @@
+This is a sample aviation safety document.
+
+On January 15, 2009, US Airways Flight 1549 made an emergency landing on the Hudson River after both engines were disabled by a bird strike. All 155 passengers and crew survived.
+
+Key factors in the successful outcome:
+1. Pilot experience and training
+2. Crew coordination
+3. Aircraft design and safety features
+4. Quick emergency response
+
+This incident led to improved bird strike mitigation measures and reinforced the importance of pilot training in emergency situations. 

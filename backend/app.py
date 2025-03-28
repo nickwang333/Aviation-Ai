@@ -19,6 +19,9 @@ The code is structured into several components:
 """
 
 import os
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env file
+
 import requests
 from datetime import datetime, timedelta
 import uvicorn
@@ -36,7 +39,7 @@ from pydantic import BaseModel, Field, PrivateAttr
 from langchain_core.embeddings import Embeddings
 from langchain_core.callbacks.manager import CallbackManagerForLLMRun
 from langchain_core.language_models.chat_models import BaseChatModel
-from langchain_core.messages import BaseMessage, AIMessage
+from langchain_core.messages import BaseMessage, AIMessage, SystemMessage, HumanMessage, AIMessageChunk
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from langchain_core.prompts import PromptTemplate
 
@@ -57,7 +60,7 @@ if not OPENAI_API_KEY:
 
 # Model names for embedding and chat completions (change if needed)
 OPENAI_EMBEDDING_MODEL = "text-embedding-ada-002"
-OPENAI_CHAT_MODEL = "gpt-4"  # or "gpt-3.5-turbo" if preferred
+OPENAI_CHAT_MODEL = "gpt-3.5-turbo"  # Changed from gpt-4 to gpt-3.5-turbo
 
 ################################################################################
 # 2. CUSTOM EMBEDDINGS CLASS (for document ingestion)
@@ -132,13 +135,15 @@ class NormalChatModel(BaseChatModel):
             'Authorization': f'Bearer {OPENAI_API_KEY}'
         }
         # Format messages as required by the OpenAI API.
-        formatted_messages = [
-            {
-                "role": msg.type,
-                "content": msg.content
-            }
-            for msg in messages
-        ]
+        formatted_messages = []
+        for msg in messages:
+            if isinstance(msg, SystemMessage):
+                formatted_messages.append({"role": "system", "content": msg.content})
+            elif isinstance(msg, HumanMessage):
+                formatted_messages.append({"role": "user", "content": msg.content})
+            elif isinstance(msg, AIMessage):
+                formatted_messages.append({"role": "assistant", "content": msg.content})
+        
         payload = {
             "model": self.model_name,
             "messages": formatted_messages,
@@ -146,16 +151,27 @@ class NormalChatModel(BaseChatModel):
         }
         if stop:
             payload["stop"] = stop
+            
+        print(f"Sending request to OpenAI with messages: {formatted_messages}")
+        
         response = requests.post(
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json=payload
         )
+        
+        print(f"OpenAI API Response Status: {response.status_code}")
+        print(f"OpenAI API Response: {response.text}")
+        
         if response.status_code == 200:
             response_data = response.json()
             content = response_data['choices'][0]['message']['content']
+            # Create a ChatGenerationChunk with the correct format
+            message = AIMessageChunk(content=content)
             generation = ChatGenerationChunk(
-                message=AIMessage(content=content)
+                message=message,
+                generation_info={"finish_reason": "stop"},
+                text=content
             )
             return ChatResult(generations=[generation])
         else:
@@ -179,6 +195,9 @@ vector_store = Chroma(
     embedding_function=embeddings,
     persist_directory="./chroma_langchain_db",
 )
+
+# Flag to track initialization
+_initialized = False
 
 def load_documents_from_directory(directory_path: str):
     """
@@ -210,53 +229,18 @@ def add_to_vector_store():
     """
     Load documents from both a list of URLs and a local data folder,
     split them into chunks, add metadata, and store their embeddings in Chroma.
+    Only adds new documents if they don't already exist in the store.
     """
+    # Check if vector store is empty
+    if vector_store._collection.count() > 0:
+        print("Vector store already contains documents. Skipping document addition.")
+        return {"status": "success", "message": "Vector store already initialized"}
+
     # URLs to load (these can be changed to relevant aviation data URLs)
     url_list = [
         "https://python.langchain.com/docs/introduction/",
         "https://www.freecodecamp.org/news/get-started-with-hugging-face/",
         "https://github.com/MODSetter/SurfSense/blob/main/README.md"
-        
-         """
-        Website: https://www.ntsb.gov
-        Accident Database: https://www.ntsb.gov/_layouts/ntsb.aviation/index.aspx
-        Federal Aviation Administration (FAA): Publishes data and reports on aviation incidents and accidents.
-        Website: https://www.faa.gov
-        Accident and Incident Data System (AIDS): https://www.faa.gov/data_research/accident_incident/aviation_data_system/
-        International Civil Aviation Organization (ICAO): Offers global aviation accident reports and safety data.
-        Website: https://www.icao.int
-        Safety Reports: https://www.icao.int/safety/Pages/Safety-Report.aspx
-        Bureau d'Enquêtes et d'Analyses (BEA): Responsible for aviation accident investigation reports in France and related regions.
-        Website: https://www.bea.aero
-        Investigation Reports: https://www.bea.aero/en/investigation-reports/
-        Aviation Safety Databases:
-
-        Aviation Safety Network (ASN): Collects data on global aviation accidents and safety incidents.
-        Website: https://aviation-safety.net/
-        Manufacturer Safety Documents:
-
-        Boeing: Publishes safety reports and technical documents related to its aircraft.
-        Website: https://www.boeing.com
-        Safety Information: https://www.boeing.com/commercial/safety/
-        Airbus: Provides safety information and reports for its aircraft models.
-        Website: https://www.airbus.com
-        Safety Information: https://safetyfirst.airbus.com/
-        Pilot and Air Traffic Control Records:
-
-        Cockpit Voice Recorder (CVR) Data: Typically included in official accident reports, providing dialogues between pilots and air traffic control.
-        These records are usually found within the accident investigation reports from agencies like NTSB and BEA.
-        Weather Reports and Maintenance Logs:
-
-        National Weather Service (NWS): Offers historical weather data useful for analyzing conditions during accidents.
-        Website: https://www.weather.gov
-        Historical Weather Data: https://www.weather.gov/climate/
-        Airline Maintenance Records: Typically obtained by relevant agencies during accident investigations and may be included in official reports.
-        Aviation Safety Research Papers:
-
-        Academic Journals and Conference Proceedings: Numerous research papers on aviation safety are published in journals like Aerospace Science and Technology.
-        Journal Homepage: https://www.journals.elsevier.com/aerospace-science-and-technology
-        Paper Search Platform: https://www.sciencedirect.com/journal/aerospace-science-and-technology
-        """
     ]
     
     # Load documents from URLs
@@ -290,6 +274,8 @@ def add_to_vector_store():
             <document_chunk_content>{chunk.page_content}</document_chunk_content>
         </document_chunk>
         '''
+    
+    print(f"Adding {len(chunks)} chunks to vector store...")
     vector_store.add_documents(documents=chunks)
     return {"status": "success", "message": f"Added {len(chunks)} chunks to vector store"}
 
@@ -302,60 +288,76 @@ def query_vector_store(query: str) -> Dict[str, Any]:
     Given a user query, retrieve the top relevant document chunks from the vector store,
     combine them as context, and call the LLM (via OpenAI's API) to generate a response.
     """
-    # Retrieve similar documents/chunks (using a k-nearest search)
-    docs = vector_store.similarity_search(query, k=20)
-    
-    concatenated_content = ""
-    sources = []
-    for doc in docs:
-        concatenated_content += doc.page_content + "\n"
-        source = doc.metadata.get("source", "Unknown")
-        if source not in sources:
-            sources.append(source)
+    try:
+        # Retrieve similar documents/chunks (using a k-nearest search)
+        docs = vector_store.similarity_search(query, k=3)  # Reduced from 20 to 3 for better context
+        
+        concatenated_content = ""
+        sources = []
+        for doc in docs:
+            concatenated_content += doc.page_content + "\n"
+            source = doc.metadata.get("source", "Unknown")
+            if source not in sources:
+                sources.append(source)
 
-    # Construct the system and user messages for the LLM prompt
-    system_message = (
-        "You are given a context in <context> in the form of document chunks with associated sources. "
-        "Your task is to retrieve relevant information, answer user questions based on the retrieved chunks, "
-        "and provide both the answers and their corresponding sources."
-    )
+        # Construct the system and user messages for the LLM prompt
+        system_message = (
+            "You are an aviation safety expert assistant. Your task is to answer questions based on the provided context. "
+            "Always cite your sources when providing information. If the context doesn't contain enough information to answer "
+            "the question, say so clearly. Keep your responses concise and focused on aviation safety."
+        )
 
-    user_message = f"""
-    <context>
+        user_message = f"""
+        Context:
         {concatenated_content}
-    </context>
-    
-    # User Question:
-    {query}
-    """
+        
+        Question: {query}
+        """
 
-    messages = [
-        {"role": "system", "content": system_message},
-        {"role": "user", "content": user_message}
-    ]
-    
-    # Call the OpenAI Chat Completion endpoint directly
-    response = requests.post(
-        "https://api.openai.com/v1/chat/completions",
-        headers={
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {OPENAI_API_KEY}'
-        },
-        json={
-            "model": OPENAI_CHAT_MODEL,
-            "messages": messages,
-            "temperature": 0
-        }
-    )
-    
-    if response.status_code == 200:
-        response_data = response.json()
-        content = response_data['choices'][0]['message']['content']
-        return {
-            "response": content,
-            "sources": sources
-        }
-    raise Exception(f"Failed to get response: {response.text}")
+        # Use the chat model to generate a response
+        messages = [
+            SystemMessage(content=system_message),
+            HumanMessage(content=user_message)
+        ]
+        
+        try:
+            response = llm.invoke(messages)
+            if hasattr(response, 'generations') and response.generations:
+                # Extract just the content from the response
+                content = response.generations[0].text
+                # Clean up any metadata or formatting
+                content = content.replace("content='", "").replace("'", "")
+                content = content.replace('content="', '').replace('"', '')
+                content = content.split(" additional_kwargs")[0].strip()
+                content = content.split(" response_metadata")[0].strip()
+                content = content.split(" id=")[0].strip()
+                
+                return {
+                    "response": content,
+                    "sources": sources
+                }
+            else:
+                content = str(response)
+                # Clean up any metadata or formatting
+                content = content.replace("content='", "").replace("'", "")
+                content = content.replace('content="', '').replace('"', '')
+                content = content.split(" additional_kwargs")[0].strip()
+                content = content.split(" response_metadata")[0].strip()
+                content = content.split(" id=")[0].strip()
+                
+                return {
+                    "response": content,
+                    "sources": sources
+                }
+        except Exception as e:
+            print(f"Error generating response: {str(e)}")
+            return {
+                "response": "I apologize, but I encountered an error while generating the response. Please try again.",
+                "sources": sources
+            }
+    except Exception as e:
+        print(f"Exception in query_vector_store: {str(e)}")
+        raise
 
 ################################################################################
 # 6. FASTAPI ENDPOINTS FOR BACKEND-TO-FRONTEND INTERACTION
@@ -384,13 +386,65 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup_event():
     """
-    On startup, index (or re-index) documents by adding them to the vector store.
+    On startup, check for new documents and add them to the vector store.
     """
+    global _initialized
     try:
-        add_to_vector_store()
-        print("Vector store initialized successfully")
+        if _initialized:
+            print("Vector store already initialized in this session. Skipping initialization.")
+            return
+
+        # Check if the vector store directory exists
+        if not os.path.exists("./chroma_langchain_db"):
+            print("Vector store not found. Initializing...")
+            add_to_vector_store()
+            print("Vector store initialized successfully")
+        else:
+            print("Vector store exists. Checking for new documents...")
+            # Get list of existing documents in the vector store
+            existing_docs = vector_store.get()['ids']
+            print(f"Found {len(existing_docs)} existing documents in vector store")
+            
+            # Load and process new documents
+            new_docs = load_documents_from_directory("./data")
+            if new_docs:
+                print(f"Found {len(new_docs)} documents in data directory")
+                # Split documents into chunks
+                text_splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=1024,
+                    chunk_overlap=124,
+                    length_function=len,
+                    is_separator_regex=False,
+                )
+                chunks = text_splitter.split_documents(new_docs)
+                
+                # Add metadata to chunks
+                for chunk in chunks:
+                    source = chunk.metadata.get("source", "Unknown")
+                    source_type = "url" if source.startswith(("http://", "https://")) else "file"
+                    chunk.page_content = f'''
+                    <document_chunk>
+                        <document_source>{source}</document_source>
+                        <document_type>{source_type}</document_type>
+                        <document_chunk_content>{chunk.page_content}</document_chunk_content>
+                    </document_chunk>
+                    '''
+                
+                # Add new chunks to vector store
+                if chunks:
+                    print(f"Adding {len(chunks)} new chunks to vector store...")
+                    vector_store.add_documents(documents=chunks)
+                    print("New documents added successfully")
+                else:
+                    print("No new documents to add")
+            else:
+                print("No documents found in data directory")
+        
+        _initialized = True
     except Exception as e:
-        print(f"Error initializing vector store: {str(e)}")
+        print(f"Error during startup: {str(e)}")
+        _initialized = False
+        raise
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
@@ -399,12 +453,14 @@ async def chat(request: ChatRequest):
     and returns the generated response along with source information.
     """
     try:
+        print(f"Received chat request with message: {request.message}")
         result = query_vector_store(request.message)
         return ChatResponse(
             response=result["response"],
             sources=result["sources"]
         )
     except Exception as e:
+        print(f"Error in chat endpoint: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/index")
