@@ -196,9 +196,6 @@ vector_store = Chroma(
     persist_directory="./chroma_langchain_db",
 )
 
-# Flag to track initialization
-_initialized = False
-
 def load_documents_from_directory(directory_path: str):
     """
     Load documents from the specified directory using various file loaders.
@@ -388,12 +385,7 @@ async def startup_event():
     """
     On startup, check for new documents and add them to the vector store.
     """
-    global _initialized
     try:
-        if _initialized:
-            print("Vector store already initialized in this session. Skipping initialization.")
-            return
-
         # Check if the vector store directory exists
         if not os.path.exists("./chroma_langchain_db"):
             print("Vector store not found. Initializing...")
@@ -439,12 +431,8 @@ async def startup_event():
                     print("No new documents to add")
             else:
                 print("No documents found in data directory")
-        
-        _initialized = True
     except Exception as e:
         print(f"Error during startup: {str(e)}")
-        _initialized = False
-        raise
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
